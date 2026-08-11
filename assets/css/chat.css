@@ -1,0 +1,1268 @@
+/* WP AI Agent chat widget */
+
+/* Theme tokens — overridden per-site by the Appearance screen (inline CSS).
+   Defaults reproduce the original "Ocean Blue" look, so an unconfigured site is
+   visually identical. */
+#wp-ai-agent-widget {
+    --wpaia-primary: #1e73be;
+    --wpaia-primary-dark: #155a96;
+    --wpaia-accent: #2b86d6;
+    --wpaia-bg: #f7f9fc;
+    --wpaia-ai-bubble: #ffffff;
+    --wpaia-ai-text: #1f2733;
+    --wpaia-user-text: #ffffff;
+    --wpaia-success: #25d366;
+    --wpaia-error: #b32d2e;
+}
+
+#wp-ai-agent-widget,
+#wp-ai-agent-widget * {
+    box-sizing: border-box;
+}
+
+/* Theme-proofing: some themes override the HTML `hidden` attribute (e.g.
+   `input { display: block !important }`), which makes the native file picker
+   ("Choose File") appear and breaks the input row. Force these hidden so the
+   widget looks identical on every site. */
+#wp-ai-agent-widget [hidden],
+#wp-ai-agent-widget .wp-ai-agent-file,
+#wp-ai-agent-widget input[type="file"] {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+    position: absolute !important;
+    left: -9999px !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+}
+
+/* Theme-proofing: reset only the properties themes commonly force onto buttons
+   and inputs (uppercase text, letter-spacing, native appearance, min/max-height,
+   inherited fonts). The widget's own colours, sizes, and radii live in the class
+   rules below and are deliberately NOT touched here. */
+#wp-ai-agent-widget button,
+#wp-ai-agent-widget input,
+#wp-ai-agent-widget textarea {
+    font-family: inherit !important;
+    text-transform: none !important;
+    letter-spacing: normal !important;
+    text-shadow: none !important;
+    text-indent: 0 !important;
+    min-height: auto !important;
+    max-height: none !important;
+    float: none !important;
+    vertical-align: middle !important;
+    -webkit-appearance: none !important;
+    appearance: none !important;
+}
+
+#wp-ai-agent-widget {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    z-index: 99999;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+}
+
+/* Admin-selectable corner (default bottom-right). Always fixed, never overlaps
+   flow content, and stays clear of the viewport edges on mobile. */
+#wp-ai-agent-widget.wpaia-pos-bottom-right { top: auto; bottom: 24px; left: auto; right: 24px; }
+#wp-ai-agent-widget.wpaia-pos-bottom-left  { top: auto; bottom: 24px; right: auto; left: 24px; }
+#wp-ai-agent-widget.wpaia-pos-top-right    { bottom: auto; top: 24px; left: auto; right: 24px; }
+#wp-ai-agent-widget.wpaia-pos-top-left     { bottom: auto; top: 24px; right: auto; left: 24px; }
+
+@media (max-width: 480px) {
+    #wp-ai-agent-widget.wpaia-pos-bottom-right,
+    #wp-ai-agent-widget.wpaia-pos-bottom-left { bottom: 14px; }
+    #wp-ai-agent-widget.wpaia-pos-top-right,
+    #wp-ai-agent-widget.wpaia-pos-top-left { top: 14px; }
+    #wp-ai-agent-widget.wpaia-pos-bottom-right,
+    #wp-ai-agent-widget.wpaia-pos-top-right { right: 14px; left: auto; }
+    #wp-ai-agent-widget.wpaia-pos-bottom-left,
+    #wp-ai-agent-widget.wpaia-pos-top-left { left: 14px; right: auto; }
+}
+
+/* Launcher — a circular white avatar with the robot (the assistant's identity). */
+.wp-ai-agent-toggle {
+    width: 64px;
+    height: 64px;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    background: #fff;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 10px 26px rgba(0, 0, 0, 0.22);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.wp-ai-agent-toggle:hover {
+    transform: translateY(-2px) scale(1.04);
+    box-shadow: 0 14px 34px rgba(0, 0, 0, 0.28);
+}
+
+/* ---- Shared header (identical on Home + Chat) ---- */
+#wp-ai-agent-widget .wp-ai-agent-topbar {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    padding: 13px 16px;
+    background: linear-gradient(135deg, var(--wpaia-primary) 0%, var(--wpaia-primary-dark) 100%);
+    color: #fff;
+}
+
+#wp-ai-agent-widget .wp-ai-agent-brand {
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 0.2px;
+    color: #fff;
+}
+
+/* Robot avatar (white circle + soft shadow); the robot keeps its aspect ratio. */
+#wp-ai-agent-widget .wp-ai-agent-avatar {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    flex: 0 0 34px;
+    background: #fff;
+    border-radius: 50%;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
+    color: var(--wpaia-primary);
+}
+
+#wp-ai-agent-widget .wp-ai-agent-avatar .wp-ai-agent-robot {
+    width: 24px;
+    height: 24px;
+    display: block;
+}
+
+#wp-ai-agent-widget .wp-ai-agent-avatar-lg {
+    width: 52px;
+    height: 52px;
+    flex: 0 0 52px;
+    box-shadow: none;
+}
+
+#wp-ai-agent-widget .wp-ai-agent-avatar-lg .wp-ai-agent-robot {
+    width: 40px;
+    height: 40px;
+}
+
+/* Home greeting (now below the shared header). */
+#wp-ai-agent-widget .wp-ai-agent-greeting {
+    padding: 4px 2px 2px;
+}
+
+#wp-ai-agent-widget .wp-ai-agent-greeting-title {
+    margin: 0 0 4px;
+    font-size: 22px;
+    font-weight: 800;
+    color: #16314a;
+    line-height: 1.2;
+}
+
+#wp-ai-agent-widget .wp-ai-agent-greeting-sub {
+    margin: 0;
+    font-size: 13.5px;
+    color: #5b6a7a;
+    line-height: 1.5;
+}
+
+/* Quiet New chat / Clear history links at the bottom of Home. */
+#wp-ai-agent-widget .wp-ai-agent-home-actions {
+    display: flex;
+    gap: 16px;
+    justify-content: center;
+    padding: 8px 0 2px;
+    margin-top: auto;
+}
+
+#wp-ai-agent-widget .wp-ai-agent-mini-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: none;
+    border: 0;
+    padding: 4px 6px;
+    color: #8a97a6;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: color 0.12s ease;
+}
+
+#wp-ai-agent-widget .wp-ai-agent-mini-link:hover {
+    color: var(--wpaia-primary);
+}
+
+#wp-ai-agent-widget .wp-ai-agent-mini-link .wp-ai-agent-mi {
+    width: 14px;
+    height: 14px;
+}
+
+.wp-ai-agent-panel {
+    width: 370px;
+    max-width: calc(100vw - 32px);
+    height: 560px;
+    max-height: calc(100vh - 120px);
+    margin-top: 12px;
+    background: #fff;
+    border-radius: 20px;
+    box-shadow: 0 20px 48px rgba(0, 0, 0, 0.22);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.wp-ai-agent-panel.is-hidden {
+    display: none;
+}
+
+/* Views (Home / Chat) fill the panel above the bottom nav. */
+#wp-ai-agent-widget .wp-ai-agent-view {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+#wp-ai-agent-widget .wp-ai-agent-view.is-hidden {
+    display: none;
+}
+
+/* ---- Home view ---- */
+#wp-ai-agent-widget .wp-ai-agent-hero {
+    position: relative;
+    background: linear-gradient(160deg, #16314a 0%, #1e3a5f 60%, #245a8d 100%);
+    color: #fff;
+    padding: 26px 22px 22px;
+    flex: 0 0 auto;
+}
+
+#wp-ai-agent-widget .wp-ai-agent-hero-title {
+    margin: 0 0 6px;
+    font-size: 24px;
+    font-weight: 800;
+    color: #fff;
+    line-height: 1.2;
+}
+
+#wp-ai-agent-widget .wp-ai-agent-hero-sub {
+    margin: 0;
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.85);
+    line-height: 1.5;
+}
+
+#wp-ai-agent-widget .wp-ai-agent-close {
+    margin-left: auto;
+    flex: 0 0 auto;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.2);
+    color: #fff;
+    font-size: 20px;
+    line-height: 1;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s ease;
+}
+
+#wp-ai-agent-widget .wp-ai-agent-close:hover {
+    background: rgba(255, 255, 255, 0.34);
+}
+
+#wp-ai-agent-widget .wp-ai-agent-home-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 16px;
+    background: #f4f6f9;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+#wp-ai-agent-widget .wp-ai-agent-home-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+#wp-ai-agent-widget .wp-ai-agent-home-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    width: 100%;
+    text-align: left;
+    background: #fff;
+    border: 1px solid #e7ecf3;
+    border-radius: 12px;
+    padding: 10px 14px;
+    font-size: 13.5px;
+    font-weight: 600;
+    color: #16314a;
+    cursor: pointer;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    transition: transform 0.12s ease, box-shadow 0.15s ease;
+}
+
+#wp-ai-agent-widget .wp-ai-agent-home-card:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
+}
+
+#wp-ai-agent-widget .wp-ai-agent-home-card .chev {
+    color: #9aa7b6;
+    flex: 0 0 auto;
+}
+
+#wp-ai-agent-widget .wp-ai-agent-care-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    width: 100%;
+    text-align: left;
+    background: #fff;
+    border: 1px solid #d4e6f7;
+    border-left: 4px solid var(--wpaia-success);
+    border-radius: 12px;
+    padding: 10px 14px;
+    cursor: pointer;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    transition: transform 0.12s ease, box-shadow 0.15s ease;
+}
+
+#wp-ai-agent-widget .wp-ai-agent-care-card:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
+}
+
+#wp-ai-agent-widget .wp-ai-agent-care-text {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+#wp-ai-agent-widget .wp-ai-agent-care-text strong {
+    font-size: 14px;
+    color: #16314a;
+}
+
+#wp-ai-agent-widget .wp-ai-agent-care-text small {
+    font-size: 12.5px;
+    color: #25924a;
+}
+
+#wp-ai-agent-widget .wp-ai-agent-care-card svg {
+    color: var(--wpaia-success);
+    flex: 0 0 auto;
+}
+
+/* ---- Bottom navigation (Home · Voice · Chat) ---- */
+#wp-ai-agent-widget .wp-ai-agent-nav {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: stretch;
+    border-top: 1px solid #eef1f5;
+    background: #fff;
+    box-shadow: 0 -4px 14px rgba(0, 0, 0, 0.04);
+}
+
+#wp-ai-agent-widget .wp-ai-agent-nav-btn {
+    flex: 1 1 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 4px;
+    padding: 9px 0;
+    border: 0;
+    background: transparent;
+    color: #9aa7b6;
+    font-size: 11.5px;
+    font-weight: 600;
+    line-height: 1;
+    cursor: pointer;
+    transition: color 0.15s ease, transform 0.12s ease;
+}
+
+#wp-ai-agent-widget .wp-ai-agent-nav-btn.is-active {
+    color: var(--wpaia-primary);
+    transform: translateY(-1px);
+}
+
+/* Center Voice Assistant — the primary CTA: a large floating gradient circle. */
+#wp-ai-agent-widget .wp-ai-agent-nav-voice {
+    flex: 1 1 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 4px;
+    padding: 9px 0;
+}
+
+/* Voice is a MOBILE + TABLET experience only. On desktop/laptop (≥1025px) the
+   Voice button is removed entirely — the nav shows just Home + Chat, which stay
+   balanced because each remaining item keeps flex:1. Responsive to live resize. */
+@media (min-width: 1025px) {
+    #wp-ai-agent-widget .wp-ai-agent-nav-voice {
+        display: none !important;
+    }
+}
+
+#wp-ai-agent-widget .wp-ai-agent-voice-btn {
+    width: 50px;
+    height: 50px;
+    margin-top: -18px;
+    padding: 0;
+    border: 4px solid #fff;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--wpaia-primary) 0%, var(--wpaia-accent) 100%);
+    color: #fff;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.22);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+#wp-ai-agent-widget .wp-ai-agent-voice-btn:hover {
+    transform: translateY(-2px) scale(1.05);
+    box-shadow: 0 12px 26px rgba(0, 0, 0, 0.28);
+}
+
+#wp-ai-agent-widget .wp-ai-agent-voice-btn .wp-ai-agent-mic {
+    width: 24px;
+    height: 24px;
+    display: block;
+}
+
+#wp-ai-agent-widget .wp-ai-agent-voice-label {
+    font-size: 11.5px;
+    font-weight: 600;
+    line-height: 1;
+    color: #9aa7b6;
+}
+
+/* Listening ripple. */
+#wp-ai-agent-widget .wp-ai-agent-voice-btn.is-listening {
+    animation: wpaia-voice-pulse 1.3s ease-out infinite;
+}
+
+@keyframes wpaia-voice-pulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(30, 115, 190, 0.45), 0 8px 20px rgba(0, 0, 0, 0.22);
+    }
+
+    70% {
+        box-shadow: 0 0 0 15px rgba(30, 115, 190, 0), 0 8px 20px rgba(0, 0, 0, 0.22);
+    }
+
+    100% {
+        box-shadow: 0 0 0 0 rgba(30, 115, 190, 0), 0 8px 20px rgba(0, 0, 0, 0.22);
+    }
+}
+
+/* Speaking (text-to-speech) — a gentle breathing scale, distinct from listening. */
+#wp-ai-agent-widget .wp-ai-agent-voice-btn.is-speaking {
+    animation: wpaia-voice-speak 0.9s ease-in-out infinite alternate;
+}
+
+@keyframes wpaia-voice-speak {
+    from { transform: scale(1); }
+    to   { transform: scale(1.08); }
+}
+
+/* Floating voice status badge — shown ABOVE the input (never inside it). */
+#wp-ai-agent-widget .wp-ai-agent-voice-status {
+    align-self: center;
+    margin: 0 12px 6px;
+    padding: 6px 13px;
+    border-radius: 16px;
+    font-size: 12.5px;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: #eef4fb;
+    color: var(--wpaia-primary);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+    animation: wpaia-vs-in 0.18s ease;
+}
+
+#wp-ai-agent-widget .wp-ai-agent-voice-status.is-hidden {
+    display: none;
+}
+
+#wp-ai-agent-widget .wp-ai-agent-voice-status::before {
+    content: "";
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: currentColor;
+    flex: 0 0 auto;
+}
+
+#wp-ai-agent-widget .wpaia-vs-listening { background: #eef4fb; color: var(--wpaia-primary); }
+#wp-ai-agent-widget .wpaia-vs-listening::before { animation: wpaia-vs-dot 1s infinite; }
+#wp-ai-agent-widget .wpaia-vs-processing { background: #fff5e6; color: #b8730b; }
+#wp-ai-agent-widget .wpaia-vs-speaking { background: #eafaf0; color: #1a9c52; }
+#wp-ai-agent-widget .wpaia-vs-speaking::before { animation: wpaia-vs-dot 0.9s infinite; }
+#wp-ai-agent-widget .wpaia-vs-ready { background: #eafaf0; color: #1a9c52; }
+#wp-ai-agent-widget .wpaia-vs-ready::before { display: none; }
+#wp-ai-agent-widget .wpaia-vs-error { background: #fdeaea; color: var(--wpaia-error); }
+
+@keyframes wpaia-vs-dot {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.35; transform: scale(1.5); }
+}
+
+@keyframes wpaia-vs-in {
+    from { opacity: 0; transform: translateY(4px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.wp-ai-agent-header {
+    background: linear-gradient(135deg, var(--wpaia-primary) 0%, var(--wpaia-primary-dark) 100%);
+    color: #fff;
+    padding: 16px 18px;
+    font-weight: 700;
+    font-size: 16px;
+    letter-spacing: 0.2px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.wp-ai-agent-header::before {
+    content: "";
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: #4ade80;
+    box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.3);
+    flex: 0 0 auto;
+}
+
+/* Always-visible "Contact" button in the header — one tap to leave details. */
+#wp-ai-agent-widget .wp-ai-agent-contact-btn {
+    margin-left: auto;
+    background: rgba(255, 255, 255, 0.18);
+    color: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    border-radius: 16px;
+    padding: 5px 12px;
+    font-size: 12.5px;
+    font-weight: 600;
+    line-height: 1.3;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s ease;
+}
+
+#wp-ai-agent-widget .wp-ai-agent-contact-btn:hover {
+    background: rgba(255, 255, 255, 0.32);
+}
+
+/* Header three-dot (⋮) menu. */
+#wp-ai-agent-widget .wp-ai-agent-menu {
+    position: relative;
+    flex: 0 0 auto;
+}
+
+#wp-ai-agent-widget .wp-ai-agent-menu-btn {
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    margin: 0;
+    background: rgba(255, 255, 255, 0.18);
+    color: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    border-radius: 50%;
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s ease;
+}
+
+#wp-ai-agent-widget .wp-ai-agent-menu-btn:hover {
+    background: rgba(255, 255, 255, 0.32);
+}
+
+#wp-ai-agent-widget .wp-ai-agent-menu-dropdown {
+    position: absolute;
+    top: 38px;
+    right: 0;
+    z-index: 6;
+    min-width: 152px;
+    background: #fff;
+    border: 1px solid #e7ecf3;
+    border-radius: 12px;
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.18);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+#wp-ai-agent-widget .wp-ai-agent-menu-dropdown.is-hidden {
+    display: none;
+}
+
+#wp-ai-agent-widget .wp-ai-agent-menu-item {
+    background: #fff;
+    border: 0;
+    text-align: left;
+    padding: 11px 14px;
+    font-size: 13.5px;
+    font-weight: 600;
+    color: #16314a;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.12s ease, color 0.12s ease;
+}
+
+#wp-ai-agent-widget .wp-ai-agent-menu-item:hover {
+    background: #f1f5fb;
+    color: var(--wpaia-primary);
+}
+
+/* Multi-line message box (Enter sends, Shift+Enter = new line). Overrides the
+   generic textarea reset above with equal/higher specificity + !important. */
+#wp-ai-agent-widget textarea.wp-ai-agent-input {
+    height: 40px;
+    min-height: 40px !important;
+    max-height: 120px !important;
+    resize: none !important;
+    overflow-y: auto;
+    line-height: 1.4;
+    padding-top: 9px;
+    padding-bottom: 9px;
+    white-space: pre-wrap;
+}
+
+/* Staged image preview (shown before the user sends image + text together). */
+#wp-ai-agent-widget .wp-ai-agent-preview {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    background: #f1f5fb;
+    border-top: 1px solid #eef1f5;
+}
+
+#wp-ai-agent-widget .wp-ai-agent-preview.is-hidden {
+    display: none;
+}
+
+#wp-ai-agent-widget .wp-ai-agent-preview-img {
+    width: 40px;
+    height: 40px;
+    flex: 0 0 40px;
+    object-fit: cover;
+    border-radius: 8px;
+    border: 1px solid #d4e6f7;
+}
+
+#wp-ai-agent-widget .wp-ai-agent-preview-label {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: 12.5px;
+    color: #4b5b6b;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+#wp-ai-agent-widget .wp-ai-agent-preview-remove {
+    flex: 0 0 auto;
+    margin-left: auto;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: #e2e8f0;
+    color: #334155;
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.12s ease;
+}
+
+#wp-ai-agent-widget .wp-ai-agent-preview-remove:hover {
+    background: #cbd5e1;
+}
+
+.wp-ai-agent-messages {
+    padding: 14px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    background: var(--wpaia-bg);
+}
+
+.wp-ai-agent-message {
+    line-height: 1.55;
+    border-radius: 16px;
+    padding: 10px 14px;
+    max-width: 85%;
+    font-size: 14px;
+    white-space: pre-line;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+    text-align: left;
+}
+
+/* Theme-proofing: keep all widget content left-aligned even if the theme
+   centers body/content text. */
+#wp-ai-agent-widget .wp-ai-agent-messages,
+#wp-ai-agent-widget .wp-ai-agent-home-body,
+#wp-ai-agent-widget .wp-ai-agent-product-info,
+#wp-ai-agent-widget .wp-ai-agent-hero {
+    text-align: left;
+}
+
+.wp-ai-agent-message-human {
+    background: linear-gradient(135deg, var(--wpaia-primary) 0%, var(--wpaia-accent) 100%);
+    color: var(--wpaia-user-text);
+    align-self: flex-end;
+    border-bottom-right-radius: 5px;
+}
+
+.wp-ai-agent-message-bot {
+    background: var(--wpaia-ai-bubble);
+    color: var(--wpaia-ai-text);
+    align-self: flex-start;
+    border: 1px solid #e7ecf3;
+    border-bottom-left-radius: 5px;
+}
+
+.wp-ai-agent-message-bot.wp-ai-agent-loading {
+    opacity: 0.7;
+    font-style: italic;
+}
+
+/* Welcome greeting spans the panel. */
+.wp-ai-agent-message.wp-ai-agent-welcome {
+    max-width: 100%;
+    align-self: stretch;
+    background: #eef5fc;
+    border-color: #d4e6f7;
+}
+
+/* Inline link rendered as a small clickable button. */
+.wp-ai-agent-link-btn {
+    display: inline-block;
+    margin: 3px 4px 3px 0;
+    padding: 5px 12px;
+    background: var(--wpaia-primary);
+    color: #fff !important;
+    text-decoration: none !important;
+    border-radius: 14px;
+    font-size: 12.5px;
+    font-weight: 600;
+    line-height: 1.4;
+    transition: background 0.15s ease;
+}
+
+.wp-ai-agent-link-btn:hover {
+    background: var(--wpaia-primary-dark);
+    color: #fff !important;
+}
+
+#wp-ai-agent-widget .wp-ai-agent-link-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    vertical-align: middle;
+}
+
+#wp-ai-agent-widget .wp-ai-agent-link-btn .wp-ai-agent-mi {
+    width: 15px;
+    height: 15px;
+    color: #fff;
+}
+
+/* Quick action buttons under the welcome message. */
+.wp-ai-agent-quick-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 2px;
+    align-self: stretch;
+}
+
+/* Reply buttons shown under a bot message (e.g. Login / Register). */
+.wp-ai-agent-reply-actions {
+    margin-top: 6px;
+    align-self: flex-start;
+}
+
+/* WhatsApp "Continue on WhatsApp" CTA button. */
+#wp-ai-agent-widget .wp-ai-agent-wa-btn {
+    background: var(--wpaia-success);
+    color: #fff !important;
+    border-color: var(--wpaia-success);
+    text-decoration: none !important;
+}
+
+#wp-ai-agent-widget .wp-ai-agent-wa-btn:hover {
+    background: #1ebe5b;
+    border-color: #1ebe5b;
+    color: #fff !important;
+}
+
+.wp-ai-agent-quick-btn {
+    background: #fff;
+    color: var(--wpaia-primary);
+    border: 1px solid #cfe2f3;
+    border-radius: 18px;
+    padding: 7px 13px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease, transform 0.1s ease;
+}
+
+.wp-ai-agent-quick-btn:hover {
+    background: var(--wpaia-primary);
+    color: #fff;
+    border-color: var(--wpaia-primary);
+    transform: translateY(-1px);
+}
+
+.wp-ai-agent-form {
+    border-top: 1px solid #eef1f5;
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    align-items: center;
+    padding: 12px;
+    gap: 8px;
+    background: #fff;
+    width: 100%;
+}
+
+.wp-ai-agent-input {
+    flex: 1 1 auto !important;
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    height: 40px;
+    border: 1px solid #dde3ea;
+    border-radius: 28px;
+    padding: 10px 16px;
+    margin: 0;
+    font-size: 14px;
+    line-height: 1.2;
+    outline: none;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.wp-ai-agent-input:focus {
+    border-color: var(--wpaia-primary);
+    box-shadow: 0 0 0 3px rgba(30, 115, 190, 0.15);
+}
+
+.wp-ai-agent-submit {
+    flex: 0 0 auto !important;
+    width: 40px !important;
+    height: 40px;
+    min-width: 40px;
+    background: linear-gradient(135deg, var(--wpaia-primary) 0%, var(--wpaia-primary-dark) 100%);
+    color: #fff;
+    border: none;
+    border-radius: 50%;
+    padding: 0 !important;
+    margin: 0;
+    cursor: pointer;
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.12s ease, box-shadow 0.15s ease;
+}
+
+.wp-ai-agent-submit:hover {
+    box-shadow: 0 4px 12px rgba(30, 115, 190, 0.4);
+    transform: scale(1.05);
+}
+
+.wp-ai-agent-submit .wp-ai-agent-send-icon {
+    width: 20px;
+    height: 20px;
+    display: block;
+    transform: translateX(1px);
+    /* optical centering of the arrow */
+}
+
+/* Image-upload (visual search) button. */
+.wp-ai-agent-icon-btn {
+    flex: 0 0 auto !important;
+    width: 38px;
+    height: 38px;
+    min-width: 38px;
+    padding: 0 !important;
+    margin: 0;
+    background: #eef5fc;
+    color: var(--wpaia-primary);
+    border: 1px solid #d4e6f7;
+    border-radius: 50%;
+    cursor: pointer;
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+
+.wp-ai-agent-icon-btn:hover {
+    background: var(--wpaia-primary);
+    color: #fff;
+    border-color: var(--wpaia-primary);
+}
+
+/* Guided LIST cards (category / step choosers) — full-width white rows with a
+   leading icon + chevron, like a premium assistant menu. Responsive by default. */
+#wp-ai-agent-widget .wp-ai-agent-list {
+    align-self: stretch;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    background: #fff;
+    border: 1px solid #e7ecf3;
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+    margin-top: 4px;
+}
+
+#wp-ai-agent-widget .wp-ai-agent-list-item {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    width: 100%;
+    text-align: left;
+    background: #fff;
+    border: 0;
+    border-bottom: 1px solid #eef1f5;
+    padding: 13px 15px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--wpaia-ai-text);
+    cursor: pointer;
+    transition: background 0.12s ease;
+}
+
+#wp-ai-agent-widget .wp-ai-agent-list-item:last-child {
+    border-bottom: 0;
+}
+
+#wp-ai-agent-widget .wp-ai-agent-list-item:hover {
+    background: #f4f8fc;
+}
+
+#wp-ai-agent-widget .wp-ai-agent-list-label {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+#wp-ai-agent-widget .wp-ai-agent-list-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    flex: 0 0 30px;
+    border-radius: 8px;
+    background: #eef4fb;
+    color: var(--wpaia-primary);
+}
+
+#wp-ai-agent-widget .wp-ai-agent-list-icon .wp-ai-agent-mi {
+    width: 17px;
+    height: 17px;
+}
+
+#wp-ai-agent-widget .wp-ai-agent-list-chev {
+    color: #9aa7b6;
+    flex: 0 0 auto;
+}
+
+#wp-ai-agent-widget .wp-ai-agent-list-chev .wp-ai-agent-mi {
+    width: 18px;
+    height: 18px;
+}
+
+/* Product cards (visual product results). */
+#wp-ai-agent-widget .wp-ai-agent-products {
+    align-self: stretch;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 100%;
+}
+
+#wp-ai-agent-widget .wp-ai-agent-product-card {
+    display: flex;
+    gap: 10px;
+    background: #fff;
+    border: 1px solid #e7ecf3;
+    border-radius: 14px;
+    padding: 10px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+#wp-ai-agent-widget .wp-ai-agent-product-img {
+    width: 64px;
+    height: 64px;
+    flex: 0 0 64px;
+    object-fit: cover;
+    border-radius: 10px;
+    background: #f1f4f8;
+}
+
+#wp-ai-agent-widget .wp-ai-agent-product-info {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+#wp-ai-agent-widget .wp-ai-agent-product-name {
+    font-size: 13.5px;
+    font-weight: 600;
+    color: #16314a !important;
+    text-decoration: none !important;
+    line-height: 1.3;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+}
+
+#wp-ai-agent-widget .wp-ai-agent-product-name:hover {
+    color: var(--wpaia-primary) !important;
+}
+
+#wp-ai-agent-widget .wp-ai-agent-product-cat {
+    font-size: 11px;
+    color: #8a97a6;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+#wp-ai-agent-widget .wp-ai-agent-product-price {
+    font-size: 13.5px;
+    font-weight: 700;
+    color: var(--wpaia-primary);
+}
+
+#wp-ai-agent-widget .wp-ai-agent-product-oos {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--wpaia-error);
+    background: #fdeaea;
+    border-radius: 4px;
+    padding: 2px 7px;
+    margin-top: 2px;
+}
+
+#wp-ai-agent-widget .wp-ai-agent-product-desc {
+    font-size: 12px;
+    color: #6b7280;
+    line-height: 1.4;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+}
+
+#wp-ai-agent-widget .wp-ai-agent-product-actions {
+    display: flex;
+    gap: 6px;
+    margin-top: 5px;
+    flex-wrap: wrap;
+}
+
+#wp-ai-agent-widget .wp-ai-agent-cart-btn,
+#wp-ai-agent-widget .wp-ai-agent-view-btn {
+    display: inline-block;
+    padding: 6px 12px;
+    border-radius: 16px;
+    font-size: 12px;
+    font-weight: 600;
+    text-decoration: none !important;
+    cursor: pointer;
+    line-height: 1.3;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+
+#wp-ai-agent-widget .wp-ai-agent-cart-btn {
+    background: var(--wpaia-primary);
+    color: #fff !important;
+    border: 1px solid var(--wpaia-primary);
+}
+
+#wp-ai-agent-widget .wp-ai-agent-cart-btn:hover {
+    background: var(--wpaia-primary-dark);
+    border-color: var(--wpaia-primary-dark);
+}
+
+#wp-ai-agent-widget .wp-ai-agent-view-btn {
+    background: #fff;
+    color: var(--wpaia-primary) !important;
+    border: 1px solid #cfe2f3;
+}
+
+#wp-ai-agent-widget .wp-ai-agent-view-btn:hover {
+    background: #eef5fc;
+}
+
+/* Uploaded image thumbnail shown in the chat. */
+.wp-ai-agent-uploaded-img {
+    display: block;
+    max-width: 180px;
+    max-height: 180px;
+    width: auto;
+    height: auto;
+    border-radius: 10px;
+}
+
+/* ---- Google Material icons (inline SVG) ---- */
+#wp-ai-agent-widget .wp-ai-agent-mi {
+    display: block;
+    width: 20px;
+    height: 20px;
+    flex: 0 0 auto;
+}
+
+#wp-ai-agent-widget .wp-ai-agent-ic {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+}
+
+/* Home cards: icon chip + label + chevron. */
+#wp-ai-agent-widget .wp-ai-agent-card-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    flex: 0 0 30px;
+    border-radius: 8px;
+    background: #eef4fb;
+    color: var(--wpaia-primary);
+}
+
+#wp-ai-agent-widget .wp-ai-agent-card-icon .wp-ai-agent-mi {
+    width: 20px;
+    height: 20px;
+}
+
+#wp-ai-agent-widget .wp-ai-agent-card-label {
+    flex: 1 1 auto;
+    text-align: left;
+}
+
+#wp-ai-agent-widget .wp-ai-agent-home-card .chev {
+    color: #9aa7b6;
+}
+
+#wp-ai-agent-widget .wp-ai-agent-home-card .chev .wp-ai-agent-mi {
+    width: 18px;
+    height: 18px;
+}
+
+/* Quick-action / reply buttons: leading icon + label. */
+#wp-ai-agent-widget .wp-ai-agent-quick-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+#wp-ai-agent-widget .wp-ai-agent-quick-btn .wp-ai-agent-mi {
+    width: 16px;
+    height: 16px;
+}
+
+/* Header buttons + toggle + menu items: align icon with text. */
+#wp-ai-agent-widget .wp-ai-agent-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+}
+
+#wp-ai-agent-widget .wp-ai-agent-contact-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+#wp-ai-agent-widget .wp-ai-agent-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+#wp-ai-agent-widget .wp-ai-agent-menu-item .wp-ai-agent-mi {
+    width: 17px;
+    height: 17px;
+    color: #5b6a7a;
+    flex: 0 0 auto;
+}
+
+/* Customer-care card: leading support icon + text + send arrow. */
+#wp-ai-agent-widget .wp-ai-agent-care-icon {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    color: #25924a;
+}
+
+#wp-ai-agent-widget .wp-ai-agent-care-text {
+    flex: 1 1 auto;
+}
+
+/* Scrollbar */
+.wp-ai-agent-messages::-webkit-scrollbar {
+    width: 7px;
+}
+
+.wp-ai-agent-messages::-webkit-scrollbar-thumb {
+    background: #c7d2de;
+    border-radius: 8px;
+}
