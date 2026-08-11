@@ -4,7 +4,7 @@ Plugin Name: WP AI Agent
 Plugin URI: https://example.com/
 Description: Universal WordPress AI Agent plugin with chat widget, content indexing, AI engine, and WooCommerce support.
 Version: 1.2.2
-Author: AI Agent
+Author: Kuldeep Pankaj, Arvind Meghwanshi
 Text Domain: wp-ai-agent
 */
 
